@@ -1,0 +1,372 @@
+---
+title: "Data 621 - Final Project"
+author: "Anthony Munoz"
+date: "5/22/2020"
+output:
+  pdf_document:
+    df_print: kable
+    toc: true
+    toc_depth: 2
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    theme: lumen
+    highlight: pygments
+---
+
+```{r include=FALSE}
+
+knitr::opts_chunk$set(echo=FALSE)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+
+library(caret)
+library(dplyr)
+library(psych)
+library(corrplot)
+library(tidyr)
+library(ggplot2)
+library(tidyverse)
+library(DataExplorer)
+library(RColorBrewer)
+library(Amelia)
+library(MASS)
+library(car)
+library(pROC)
+
+
+```
+
+# Abstract 
+
+Breast cancer its one of the most common cancer nowadays in our society. For this project, I going to work with a dataset from Kaggle and also available on the UIC repository. In this project analysis we going to use regression modeling and try to replicate the outcome of the prediction which its this case we determine the change of cancer by declaring the results if they are Benign or Malignant. The modeling will try to come with the best accuracy prediction outcome. on this dataset we most will be working with the dimension and spect of the cancer cell. 
+
+# Introduction
+
+In this paper analysis, we going to work on getting a results product prediction by finding some insight into the dataset. most of our predictor variables are cancer cell dimensions for which just will allow us just to predict those base on those features. This analysis won't support other aspects that may be important in the analysis of cancer prediction such as, people age, use or drug or alcohol, and more.
+
+*Key works: Cancer, cells,regression.
+
+# Literature Review
+
+When it comes to research on the type of cancer, breast cancer it's one with a big notorious amount of research because it one of the most dangerous illnesses that affect thousands of women worldwide.
+
+Breast cancer its one of the leading causes of death and compassion with other types of cancer. There have been many approaches to do analysis and predict the risk of breast cancer. many of these approaches are using logistic regression, Machine learning, SVM, and others modeling. LR, SVM and KNN approaches (Madhu Kumaria, Vijendra Singhb,2018).
+
+Kumaria and Singh worked on different modeling techniques and were able to obtain an accuracy of 99.28. The methodology on how they worked with the dataset it's similar on how I work with, for example, data selection, data processing/splitting the data, work with different model and select the most accurate one to test it on the evaluation dataset.
+
+Breast cancer affects a range of different ages in a woman but according to  this journal paper we see that more 89% percent of cancer was diagnosed with women older than 50 years old and just in 2017 more than 40,000 thousand women die because of this type of cancer(DeSantis, Jiemin Ma,Ann Goding Sauer, Newman,Ahmedin Jemal 2017).
+
+# Methodology
+
+The mythology for this project is to work with regression modeling on a dataset which contains 570 rows and 33 columns. this dataset source comes from Kaggle and UIC repository. the data will be split and 2 datasets first by having the training dataset and the evaluation dataset. Later apply the GLM regression model to the training sample data and select the most accurate ones to test it with the evaluation dataset.
+
+# Experiment and results
+
+## Data Exploratory
+
+```{r message=FALSE, warning=FALSE}
+
+
+data <- read_csv('data.csv')[,c(-1,-33)]
+
+index <-  data$diagnosis %>% createDataPartition(p = 0.8, list = FALSE, times = 1)
+
+
+df <- data[index,]
+eval.data <- data[-index,] # for final evaluation data
+
+df$diagnosis <- ifelse(df$diagnosis=="M",1,0)
+diagnosis <- data.matrix(df[,2])
+
+index2 <-  diagnosis %>% createDataPartition(p = 0.8, list = FALSE, times = 1)
+
+df.train <- df[index2,]
+df.test <- df[-index2,]
+diagnosis.train <- diagnosis[index2,]
+diagnosis.test <- diagnosis[-index2,]
+
+str(df.train)
+summary(df.train)
+
+
+missmap(data)
+
+```
+
+The first insight we can observe its that our dataset it's small with just 570 rows but all the observation is complete and we don't have missing values. in the histogram plot we can see that most of the variables nearly close to normal distributed especially the most significant variables one and others somehow a little skewed.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=9, fig.height=6}
+plot_histogram(df.train)
+```
+```{r message=FALSE, warning=FALSE, fig.width=9, fig.height=6}
+plt <- df.train %>% group_by(diagnosis) %>% count() 
+
+plt <- as.data.frame(plt)
+
+p <- ggplot(data=plt, aes(x=diagnosis, y=n)) +
+  geom_bar(stat="identity", fill="steelblue")
+p
+   
+
+```
+
+```{r, fig.width=9, fig.height=8}
+ggplot(data = reshape2::melt(df.train) , aes(x=variable, y=value)) + 
+  geom_boxplot(outlier.colour="green", outlier.shape=4, outlier.size=4,aes(fill=variable)) +
+  coord_flip() 
+```
+
+```{r, fig.width=9, fig.height=6}
+corrplot(cor(df.train, use = "na.or.complete"), type="lower", 
+         col=brewer.pal(n=12, name="PiYG"))
+```
+In the correlation plot we can observe they are many correlate variables for which this can be an issue and affect our modeling design. we going to use GLM modeling regression. we going to try to run a model with all the variables and then we going to implement a stepwise function in order to remove the correlate variables and enhance the model by obtaining one with just the most significant variables.
+
+## Modeling
+
+```{r message=FALSE, warning=FALSE}
+
+
+model0 <- lm(diagnosis ~.,data = df.train)
+summary(model0)
+
+
+model1 <-  glm(diagnosis ~., data = df.train,family = 'binomial')
+summary(model1)
+vif(model1)
+
+model2 <- glm(diagnosis ~.,data = df.train, family = binomial(link = "logit"),  trace = F)
+summary(model2)
+vif(model2)
+
+model3 <- stepAIC(model1, trace = F)
+summary(model3)
+vif(model3)
+
+
+model4 <- glm(formula = diagnosis ~ texture_mean + compactness_mean + concavity_mean + 
+    radius_se + area_se + smoothness_se + compactness_se + concavity_se + 
+    `concave points_se` + radius_worst + area_worst + compactness_worst + 
+    symmetry_worst + fractal_dimension_worst, data = df.train)
+
+summary(model4)
+vif(model4)
+
+
+
+model5 <- glm(formula = diagnosis ~ radius_mean + perimeter_mean + compactness_mean + 
+    `concave points_mean` + fractal_dimension_mean + radius_se + 
+    perimeter_se + compactness_se + fractal_dimension_se + texture_worst + 
+    perimeter_worst + concavity_worst + symmetry_worst, family = "binomial", 
+    data = df.train)
+summary(model5)
+vif(model5)
+
+
+
+
+
+
+
+
+```
+
+## Select Model
+
+For the modeling part, I work with 5 different GLM models on model 1 I did stepwise in order to see if I can just select the most significant variables. taking in consideration the AIC results I choose model number 4 because this has the lowest AIC values (29.489) for which means it has the most accurate training modeling.
+
+```{r message=FALSE, warning=FALSE}
+
+
+model4 <- glm(formula = diagnosis ~ texture_mean + compactness_mean + concavity_mean + 
+    radius_se + area_se + smoothness_se + compactness_se + concavity_se + 
+    `concave points_se` + radius_worst + area_worst + compactness_worst + 
+    symmetry_worst + fractal_dimension_worst, data = df.train)
+
+
+df.train$pred <- predict(model4, df.train, interval="response")
+df.train$target.pred<- ifelse(df.train$pred >= 0.5, 1, 0)  
+confusionMatrix(factor(df.train$target.pred),factor(df.train$diagnosis))
+
+roc.value <- roc(df.train$target.pred, df.train$diagnosis, plot=TRUE, asp=NA,
+                legacy.axes=TRUE, col="red")
+
+roc.value
+
+## Test model with evaluation data
+
+
+eval.data$diagnosis <- ifelse(eval.data$diagnosis=="M",1,0)
+
+
+eval.data$pre <- predict(model4, newdata = eval.data, interval="response")
+eval.data$target.pred <- ifelse(eval.data$pre >= 0.5, 1, 0)  
+
+confusionMatrix(factor(eval.data$target.pred),factor(eval.data$diagnosis))
+
+head(eval.data$target.pred)
+head(eval.data$pre)
+
+```
+
+# Discussion and Conclusion
+
+As the final result, we conclude with a Glm model for which prediction rates of 95 %. we see that the most significant variables such as (texture_mean,compactness_mean,radius_worst,area_worst) to mention some has a big impact of diagnosed breast cancer by jus observing the cancer cell shape and dimensions. To further this analysis work could be very interesting to compare with other datasets or biggest numbers of observations dataset that contains other predictors variables such as (Age, countries, alcohol, etc) to have a more understanding of this illness. 
+
+# References
+
+1. Carol E. DeSantis MPH  Jiemin Ma PhD  Ann Goding Sauer MSPH  Lisa A. Newman MD, MPH  Ahmedin Jemal DVM, PhD , (03 October 2017). Retrieved from https://acsjournals.onlinelibrary.wiley.com/doi/full/10.3322/caac.21412
+
+2. Madhu Kumaria
+, Vijendra Singhb (2018) Breast Cancer Prediction system, retireved from https://pdf.sciencedirectassets.com/280203/1-s2.0-S1877050918X00088/1-s2.0-S1877050918309323/main.pdf?X-Amz-Security-Token=IQoJb3JpZ2luX2VjEPH%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCICTgNtCQXc%2FkfBPOwfIkLlcuvmzEFHbFbfT4N5AyRvzRAiEAvpGq4DgUM%2BBAMgbmwkfBqbTDNbKCMkSUEnEZQTjY8eAqtAMISRADGgwwNTkwMDM1NDY4NjUiDCmf1UEGQgOS1Z%2BTACqRAwTi2DfRhDwHZ7EOaQn3dkOQF6RLEM000BYYQk6%2BEp4rldE0MdmHsPznoz%2BxrX85x2Dsb1OMCQwig%2FPr4VQe1ZWoPuX1zrmGHRdwLktlUsW1lCBxVCtsZlXkOfj3cUzMky9%2BB5u74hswWYiGUcMKibNsE4HnqQJteeC1FxKFvHpBuzDlsc1ykKqAEYHCGWDdbBKojOOaDqL2R3gbdjOYPUy4blxP%2BfNIk53DDAZatcywb%2BFLK6OUgHlZtWnWUQ6iB1Ztv1afgrtDDMufEFuISoI23Vy3sOAYXX%2FYMFdXgwDzqDhMNtdIav8JOVz8%2BSqTiXwha06hd65ZZaqHNQDkmZwUC%2B64p4BidmawbFSTFCxWCDGYy6i%2ByVfM0S876ADEpKgIiDmf%2BPOgfGI%2F4eb1tXfw2wtpBxWUoxc3gg1SSZJpNfdvwT1Msz6a%2F4bVTWiG5tPZipODwq0Kr%2BfZOm07X27CNAxwOjecXTfcuYfMLAmlwIhbQNfF13CcA4r4F0r%2Fdee87N7CbgPSkyOrsO08bk0nMJPzn%2FYFOusByU%2B9E%2FbkOS2rW5tRU%2FOsadeF7mfWntpc7GwtsV0V3nlvPl9RcDP2FdFHLzc%2FWP2U3bYyh13uLkQ9UnAVGIkHOKflYYTblJJmx2I2YKjr0jstpIZBMz1Bx7A4QpshwFvjKOayZT104OmmY%2BibjZY1u0%2FgVG69jEhlRLtKlZtk5y02OScOfRQR8cSx%2Fj9H%2Fqc6FolOOazFY%2BK2zO9oBzYIW6k0peJi96yT6%2FWQtuC%2BIW5WUHHM0le%2Ftk40m2kCMuwuvdECybybqlE72ONgXxF3WjQMFed8taflbhHIfJE6dkAahYHJSEd9lZCVTw%3D%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20200522T164047Z&X-Amz-SignedHeaders=host&X-Amz-Expires=300&X-Amz-Credential=ASIAQ3PHCVTYZMTOQFXP%2F20200522%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=dbc61c841fbd5845aa6d120f880645d3f7b26b001040cf30a8737539da355c15&hash=ab881c72b5aba7662aa695aa75722923bfbfd50f8aa6f75380e6816ca4b6de42&host=68042c943591013ac2b2430a89b270f6af2c76d8dfd086a07176afe7c76c2c61&pii=S1877050918309323&tid=spdf-788c59c6-5339-4dd6-b2bd-3d4ec3e6feef&sid=5541cdbe9d5bb64c1a8a63432e8af3b0b4degxrqa&type=client
+
+3. Dataset source retrieved from Kaggle/ UCI
+
+.https://www.kaggle.com/vikasp/loadpred
+
+.https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+%28Diagnostic%29
+
+
+# Appendix
+
+```{r,ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+
+
+library(caret)
+library(dplyr)
+library(psych)
+library(corrplot)
+library(tidyr)
+library(ggplot2)
+library(tidyverse)
+library(DataExplorer)
+library(RColorBrewer)
+library(Amelia)
+library(MASS)
+library(car)
+library(pROC)
+
+
+
+
+data <- read_csv('data.csv')[,c(-1,-33)]
+
+index <-  data$diagnosis %>% createDataPartition(p = 0.8, list = FALSE, times = 1)
+
+
+df <- data[index,]
+eval.data <- data[-index,] # for final evaluation data
+
+df$diagnosis <- ifelse(df$diagnosis=="M",1,0)
+diagnosis <- data.matrix(df[,2])
+
+index2 <-  diagnosis %>% createDataPartition(p = 0.8, list = FALSE, times = 1)
+
+df.train <- df[index2,]
+df.test <- df[-index2,]
+diagnosis.train <- diagnosis[index2,]
+diagnosis.test <- diagnosis[-index2,]
+
+str(df.train)
+summary(df.train)
+
+
+missmap(data)
+
+plot_histogram(df.train)
+
+
+plt <- df.train %>% group_by(diagnosis) %>% count() 
+
+plt <- as.data.frame(plt)
+
+p <- ggplot(data=plt, aes(x=diagnosis, y=n)) +
+  geom_bar(stat="identity", fill="steelblue")
+p
+
+ggplot(data = reshape2::melt(df.train) , aes(x=variable, y=value)) + 
+  geom_boxplot(outlier.colour="green", outlier.shape=4, outlier.size=4,aes(fill=variable)) +
+  coord_flip() 
+
+
+corrplot(cor(df.train, use = "na.or.complete"), type="lower", 
+         col=brewer.pal(n=12, name="PiYG"))
+
+
+
+
+model0 <- lm(diagnosis ~.,data = df.train)
+summary(model0)
+
+
+model1 <-  glm(diagnosis ~., data = df.train,family = 'binomial')
+summary(model1)
+vif(model1)
+
+model2 <- glm(diagnosis ~.,data = df.train, family = binomial(link = "logit"),  trace = F)
+summary(model2)
+vif(model2)
+
+model3 <- stepAIC(model1, trace = F)
+summary(model3)
+vif(model3)
+
+
+model4 <- glm(formula = diagnosis ~ texture_mean + compactness_mean + concavity_mean + 
+    radius_se + area_se + smoothness_se + compactness_se + concavity_se + 
+    `concave points_se` + radius_worst + area_worst + compactness_worst + 
+    symmetry_worst + fractal_dimension_worst, data = df.train)
+
+summary(model4)
+vif(model4)
+
+
+
+model5 <- glm(formula = diagnosis ~ radius_mean + perimeter_mean + compactness_mean + 
+    `concave points_mean` + fractal_dimension_mean + radius_se + 
+    perimeter_se + compactness_se + fractal_dimension_se + texture_worst + 
+    perimeter_worst + concavity_worst + symmetry_worst, family = "binomial", 
+    data = df.train)
+summary(model5)
+vif(model5)
+
+
+
+model4 <- glm(formula = diagnosis ~ texture_mean + compactness_mean + concavity_mean + 
+    radius_se + area_se + smoothness_se + compactness_se + concavity_se + 
+    `concave points_se` + radius_worst + area_worst + compactness_worst + 
+    symmetry_worst + fractal_dimension_worst, data = df.train)
+
+
+df.train$pred <- predict(model4, df.train, interval="response")
+df.train$target.pred<- ifelse(df.train$pred >= 0.5, 1, 0)  
+confusionMatrix(factor(df.train$target.pred),factor(df.train$diagnosis))
+
+roc.value <- roc(df.train$target.pred, df.train$diagnosis, plot=TRUE, asp=NA,
+                legacy.axes=TRUE, col="red")
+
+roc.value
+
+## Test model with evaluation data
+
+
+eval.data$diagnosis <- ifelse(eval.data$diagnosis=="M",1,0)
+
+
+eval.data$pre <- predict(model4, newdata = eval.data, interval="response")
+eval.data$target.pred <- ifelse(eval.data$pre >= 0.5, 1, 0)  
+
+confusionMatrix(factor(eval.data$target.pred),factor(eval.data$diagnosis))
+
+head(eval.data$target.pred)
+head(eval.data$pre)
+
+
+```
