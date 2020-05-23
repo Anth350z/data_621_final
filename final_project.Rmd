@@ -3,10 +3,6 @@ title: "Data 621 - Final Project"
 author: "Anthony Munoz"
 date: "5/22/2020"
 output:
-  pdf_document:
-    df_print: kable
-    toc: true
-    toc_depth: 2
   html_document:
     df_print: paged
     toc: true
@@ -15,6 +11,10 @@ output:
       smooth_scroll: true
     theme: lumen
     highlight: pygments
+  pdf_document:
+    df_print: kable
+    toc: true
+    toc_depth: 2
 ---
 
 ```{r include=FALSE}
@@ -368,5 +368,6 @@ confusionMatrix(factor(eval.data$target.pred),factor(eval.data$diagnosis))
 head(eval.data$target.pred)
 head(eval.data$pre)
 
+write.csv(eval.data, "evaluation_data_prediction")
 
 ```
